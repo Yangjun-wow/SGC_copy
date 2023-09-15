@@ -5,7 +5,6 @@ import numpy as np
 import pickle as pkl
 import networkx as nx
 import scipy.sparse as sp
-from utils import loadWord2Vec, clean_str
 from math import log
 from sklearn import svm
 from nltk.corpus import wordnet as wn
@@ -13,11 +12,14 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from scipy.spatial.distance import cosine
 from tqdm import tqdm
 from collections import Counter
+import remove_words
 import itertools
+from train import args
+from nltk.corpus import stopwords
 
 parser = argparse.ArgumentParser(description='Build Document Graph')
-parser.add_argument('--dataset', type=str, default='text_generated',
-                    choices=['20ng', 'R8', 'R52', 'ohsumed', 'mr', 'yelp', 'ag_news','text_generated'],
+parser.add_argument('--dataset', type=str, default='20ng',
+                    choices=['20ng', 'R8', 'R52', 'ohsumed', 'mr', 'yelp', 'ag_news'],
                     help='dataset name')
 parser.add_argument('--embedding_dim', type=int, default=300,
                     help='word and document embedding size.')
@@ -26,56 +28,57 @@ args = parser.parse_args()
 # build corpus
 dataset = args.dataset
 
+# build corpus
+
 word_embeddings_dim = args.embedding_dim
 word_vector_map = {} # TODO: modify this to use embedding
 
-doc_name_list = []
 # 训练集数据的id索引
-train_val_ids = []
+train_ids = []
 # 测试集是数据的id索引
 test_ids = []
 # 标签set集合
 label_names = set()
 # 训练集数据的标签索引
-train_val_labels = []
+train_labels = []
 # 测试集数据的标签索引
 test_labels = []
 
-with open('../../data/' + dataset + '.txt', 'r') as f:
-    lines = f.readlines()
-    # 为标签创建索引
-    for id, line in enumerate(lines):
-        doc_name_list.append(line.strip())
-        _, data_name, data_label = line.strip().split("\t")
-        if data_name.find('test') != -1:
-            test_ids.append(id)
-        elif data_name.find('train') != -1:
-            train_val_ids.append(id)
-        label_names.add(data_label)
-    label_names = list(label_names)
-    label_names_to_index = {name:i for i, name in enumerate(label_names)}
 
-    # 用索引表示数据标签
-    for id, line in enumerate(lines):
-        _, data_name, data_label_name = line.strip().split("\t")
-        if data_name.find('test') != -1:
-            test_labels.append(label_names_to_index[data_label_name])
-        elif data_name.find('train') != -1:
-            train_val_labels.append(label_names_to_index[data_label_name])
+#训练集，测试集的数据
+lines_train = []
+lines_test = []
 
-# 存储标签索引
-with open('../../data/corpus/' + dataset + '_labels.txt', 'w') as f:
-    f.write('\n'.join(label_names))
+with open('../../data/' + args.data_train_path,encoding='utf-8', mode='r') as f1,open('../../data/' + args.data_test_path, encoding='utf-8',mode='r') as f2:
+    lines_train = f1.readlines()
+    train_length = len(lines_train)
+    lines_test = f2.readlines()
+
+    label_names = ['content','generate']
+    label_names_to_index = {'content':0,'generate':1}
+
+    # 为标签创建索引,用索引表示数据标签
+    for id, line in enumerate(lines_train):
+        data_label_name, data_content = line.strip().split("\t")
+        train_ids.append(id)
+        train_labels.append(label_names_to_index[data_label_name])
+    for id, line in enumerate(lines_test):
+        data_label_name, data_content = line.strip().split("\t")
+        test_ids.append(id + train_length)
+        test_labels.append(label_names_to_index[data_label_name])
+
 
 
 print("Loaded labels and indices")
-# 读取清理好的数据
-doc_content_list = []
-with open('../../data/corpus/' + dataset + '.clean.txt', 'r') as f:
-    lines = f.readlines()
-    doc_content_list = [l.strip() for l in lines]
-print("Loaded document content")
+doc_content_list = lines_train + lines_test
+if args.language == 'en':
+    stop_words = set(stopwords.words('english'))
+    doc_content_list = remove_words.get_clean_words_en(doc_content_list,stop_words)
+else:
+    stop_words = remove_words.get_stop_words()
+    doc_content_list = remove_words.get_clean_words_cn(doc_content_list,stop_words)
 
+print("Loaded document content")
 # 创建词汇表，显示进度-Build vocab
 word_freq = Counter()
 progress_bar = tqdm(doc_content_list)
@@ -86,45 +89,33 @@ for doc_words in progress_bar:
 
 vocab, _ = zip(*word_freq.most_common())
 
-# put words after documents
 # 创建字典，将vocab中词汇表中的单词映射到唯一的整数标识符，标识符根据单词顺序也就是词频来标
-word_id_map = dict(zip(vocab, np.array(range(len(vocab)))+len(train_val_ids+test_ids)))
+word_id_map = dict(zip(vocab, np.array(range(len(vocab)))+len(train_ids+test_ids)))
 vocab_size = len(vocab)
 
-with open('../../data/corpus/' + dataset + '_vocab.txt', 'w') as f:
-    vocab_str = '\n'.join(vocab)
-    f.write(vocab_str)
-
 # split training and validation
-idx = list(range(len(train_val_labels)))
+idx = list(range(len(train_labels)))
 random.shuffle(idx)
-train_val_ids = [train_val_ids[i] for i in idx]
-train_val_labels = [train_val_labels[i] for i in idx]
+train_ids = [train_ids[i] for i in idx]
+train_labels = [train_labels[i] for i in idx]
 
 idx = list(range(len(test_labels)))
 random.shuffle(idx)
 test_ids = [test_ids[i] for i in idx]
 test_labels = [test_labels[i] for i in idx]
 
-train_val_size = len(train_val_ids)
-val_size = int(0.1 * train_val_size)
-train_size = train_val_size - val_size
-train_ids, val_ids = train_val_ids[:train_size], train_val_ids[train_size:]
-train_labels, val_labels = train_val_labels[:train_size], train_val_labels[train_size:]
-
 # Construct feature vectors
-def average_word_vec(doc_id, doc_content_list, word_to_vector):
-    doc_vec = np.array([0.0 for k in range(word_embeddings_dim)])
-    doc_words = doc_content_list[doc_id]
-    words = doc_words.split()
-    for word in words:
-        if word in word_vector_map:
-            word_vector = word_vector_map[word]
-            doc_vec = doc_vec + np.array(word_vector)
-    doc_vec /= len(words)
-    return doc_vec
+# def average_word_vec(doc_id, doc_content_list, word_to_vector):
+#     doc_vec = np.array([0.0 for k in range(word_embeddings_dim)])
+#     doc_words = doc_content_list[doc_id]
+#     words = doc_words.split()
+#     for word in words:
+#         if word in word_vector_map:
+#             word_vector = word_vector_map[word]
+#             doc_vec = doc_vec + np.array(word_vector)
+#     doc_vec /= len(words)
+#     return doc_vec
 
-# ????
 # def construct_feature_label_matrix(doc_ids, doc_content_list, word_vector_map):
 #     row_x = []
 #     col_x = []
@@ -151,7 +142,7 @@ def average_word_vec(doc_id, doc_content_list, word_to_vector):
 # val_x, val_y = construct_feature_label_matrix(val_ids, doc_content_list, word_vector_map)
 # test_x, test_y = construct_feature_label_matrix(test_ids, doc_content_list, word_vector_map)
 
-print("Finish building feature vectors")
+# print("Finish building feature vectors")
 
 # Creating word and word edges
 def create_window(seq, n=2):
@@ -275,7 +266,7 @@ def export_graph(graph, node_size, phase=""):
     with open(path, 'wb') as f:
         pkl.dump(adj, f)
 
-ids = train_val_ids+test_ids
+ids = train_ids+test_ids
 windows = construct_context_windows(ids, doc_content_list)
 word_window_freq = count_word_window_freq(windows)
 word_pair_count = count_word_pair_count(windows)
@@ -286,7 +277,7 @@ word_doc_freq = calc_word_doc_freq(ids, doc_content_list)
 B = build_doc_word_graph(ids, doc_content_list, doc_word_freq, word_doc_freq, phase="B")
 C = build_doc_word_graph(ids, doc_content_list, doc_word_freq, word_doc_freq, phase="C")
 
-node_size = len(vocab)+len(train_val_ids)+len(test_ids)
+node_size = len(vocab)+len(train_ids)+len(test_ids)
 export_graph(concat_graph(B, C, D), node_size, phase="BCD")
 export_graph(concat_graph(B, C), node_size, phase="BC")
 export_graph(concat_graph(B, D), node_size, phase="BD")
@@ -299,14 +290,6 @@ f.close()
 
 f = open("../../data/ind.{}.{}.y".format(dataset, "train"), 'wb')
 pkl.dump(train_labels, f)
-f.close()
-
-f = open("../../data/ind.{}.{}.x".format(dataset, "val"), 'wb')
-pkl.dump(val_ids, f)
-f.close()
-
-f = open("../../data/ind.{}.{}.y".format(dataset, "val"), 'wb')
-pkl.dump(val_labels, f)
 f.close()
 
 f = open("../../data/ind.{}.{}.x".format(dataset, "test"), 'wb')
