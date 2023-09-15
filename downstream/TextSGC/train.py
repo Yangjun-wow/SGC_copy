@@ -13,7 +13,7 @@ from utils import *
 from models import SGC
 
 parser = argparse.ArgumentParser()
-parser.add_argument('--dataset', type=str, default='20ng', help='Dataset string.')
+parser.add_argument('--dataset', type=str, default='text_generated', help='Dataset string.')
 parser.add_argument('--no-cuda', action='store_true', default=False,
                     help='Disables CUDA training.')
 parser.add_argument('--seed', type=int, default=42, help='Random seed.')
@@ -28,6 +28,11 @@ parser.add_argument('--degree', type=int, default=2,
 parser.add_argument('--tuned', action='store_true', help='use tuned hyperparams')
 parser.add_argument('--preprocessed', action='store_true',
                     help='use preprocessed data')
+
+parser.add_argument('-data_train_path', type=str, default='', help='训练数据集地址')
+parser.add_argument('-data_test_path', type=str, default='', help='测试数据集地址')
+parser.add_argument('-language', type=str, default='cn', help='区分中/英数据集')
+
 args = parser.parse_args()
 args.cuda = not args.no_cuda and torch.cuda.is_available()
 args.device = 'cuda' if args.cuda else 'cpu'
@@ -114,7 +119,7 @@ if __name__ == '__main__':
     model = SGC(nfeat=feat_dict["train"].size(1),
                 nclass=nclass)
     if args.cuda: model.cuda()
-    val_acc, best_model, train_time = train_linear(model, feat_dict, args.weight_decay, args.dataset=="mr")
+    val_acc, best_model, train_time = train_linear(model, feat_dict, d wwd.weight_decay, args.dataset=="mr")
     test_res = eval_linear(best_model, feat_dict["test"].cuda(),
                            label_dict["test"].cuda(), args.dataset=="mr")
     train_res = eval_linear(best_model, feat_dict["train"].cuda(),

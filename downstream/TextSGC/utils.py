@@ -2,7 +2,6 @@ import numpy as np
 import pickle as pkl
 import networkx as nx
 import scipy.sparse as sp
-from scipy.sparse.linalg.eigen.arpack import eigsh
 import sys
 import re
 import torch
@@ -47,10 +46,10 @@ def load_corpus(dataset_str):
                 return pkl.load(f)
 
     for p in phases:
-        index_dict[p] = load_pkl("data/ind.{}.{}.x".format(dataset_str, p))
-        label_dict[p] = load_pkl("data/ind.{}.{}.y".format(dataset_str, p))
+        index_dict[p] = load_pkl("../../data/ind.{}.{}.x".format(dataset_str, p))
+        label_dict[p] = load_pkl("../../data/ind.{}.{}.y".format(dataset_str, p))
 
-    adj = load_pkl("data/ind.{}.BCD.adj".format(dataset_str))
+    adj = load_pkl("../../data/ind.{}.BCD.adj".format(dataset_str))
     adj = adj.astype(np.float32)
     adj = preprocess_adj(adj)
 

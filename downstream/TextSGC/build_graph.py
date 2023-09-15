@@ -16,8 +16,8 @@ from collections import Counter
 import itertools
 
 parser = argparse.ArgumentParser(description='Build Document Graph')
-parser.add_argument('--dataset', type=str, default='20ng',
-                    choices=['20ng', 'R8', 'R52', 'ohsumed', 'mr', 'yelp', 'ag_news'],
+parser.add_argument('--dataset', type=str, default='text_generated',
+                    choices=['20ng', 'R8', 'R52', 'ohsumed', 'mr', 'yelp', 'ag_news','text_generated'],
                     help='dataset name')
 parser.add_argument('--embedding_dim', type=int, default=300,
                     help='word and document embedding size.')
@@ -30,14 +30,20 @@ word_embeddings_dim = args.embedding_dim
 word_vector_map = {} # TODO: modify this to use embedding
 
 doc_name_list = []
+# 训练集数据的id索引
 train_val_ids = []
+# 测试集是数据的id索引
 test_ids = []
+# 标签set集合
 label_names = set()
+# 训练集数据的标签索引
 train_val_labels = []
+# 测试集数据的标签索引
 test_labels = []
 
-with open('data/' + dataset + '.txt', 'r') as f:
+with open('../../data/' + dataset + '.txt', 'r') as f:
     lines = f.readlines()
+    # 为标签创建索引
     for id, line in enumerate(lines):
         doc_name_list.append(line.strip())
         _, data_name, data_label = line.strip().split("\t")
@@ -48,6 +54,8 @@ with open('data/' + dataset + '.txt', 'r') as f:
         label_names.add(data_label)
     label_names = list(label_names)
     label_names_to_index = {name:i for i, name in enumerate(label_names)}
+
+    # 用索引表示数据标签
     for id, line in enumerate(lines):
         _, data_name, data_label_name = line.strip().split("\t")
         if data_name.find('test') != -1:
@@ -55,19 +63,20 @@ with open('data/' + dataset + '.txt', 'r') as f:
         elif data_name.find('train') != -1:
             train_val_labels.append(label_names_to_index[data_label_name])
 
-with open('data/corpus/' + dataset + '_labels.txt', 'w') as f:
+# 存储标签索引
+with open('../../data/corpus/' + dataset + '_labels.txt', 'w') as f:
     f.write('\n'.join(label_names))
 
 
 print("Loaded labels and indices")
-# Get document content, after removed words
+# 读取清理好的数据
 doc_content_list = []
-with open('data/corpus/' + dataset + '.clean.txt', 'r') as f:
+with open('../../data/corpus/' + dataset + '.clean.txt', 'r') as f:
     lines = f.readlines()
     doc_content_list = [l.strip() for l in lines]
-
 print("Loaded document content")
-# Build vocab
+
+# 创建词汇表，显示进度-Build vocab
 word_freq = Counter()
 progress_bar = tqdm(doc_content_list)
 progress_bar.set_postfix_str("building vocabulary")
@@ -76,12 +85,13 @@ for doc_words in progress_bar:
     word_freq.update(words)
 
 vocab, _ = zip(*word_freq.most_common())
+
 # put words after documents
+# 创建字典，将vocab中词汇表中的单词映射到唯一的整数标识符，标识符根据单词顺序也就是词频来标
 word_id_map = dict(zip(vocab, np.array(range(len(vocab)))+len(train_val_ids+test_ids)))
 vocab_size = len(vocab)
 
-
-with open('data/corpus/' + dataset + '_vocab.txt', 'w') as f:
+with open('../../data/corpus/' + dataset + '_vocab.txt', 'w') as f:
     vocab_str = '\n'.join(vocab)
     f.write(vocab_str)
 
@@ -114,26 +124,27 @@ def average_word_vec(doc_id, doc_content_list, word_to_vector):
     doc_vec /= len(words)
     return doc_vec
 
-def construct_feature_label_matrix(doc_ids, doc_content_list, word_vector_map):
-    row_x = []
-    col_x = []
-    data_x = []
-    for i, doc_id in enumerate(doc_ids):
-        doc_vec = average_word_vec(doc_id, doc_content_list, word_vector_map)
-        for j in range(word_embeddings_dim):
-            row_x.append(i)
-            col_x.append(j)
-            data_x.append(doc_vec[j])
-    x = sp.csr_matrix((data_x, (row_x, col_x)), shape=(
-        real_train_size, word_embeddings_dim))
-
-    y = []
-    for label in train_labels:
-        one_hot = [0 for l in range(len(label_list))]
-        one_hot[label] = 1
-        y.append(one_hot)
-    y = np.array(y)
-    return x, y
+# ????
+# def construct_feature_label_matrix(doc_ids, doc_content_list, word_vector_map):
+#     row_x = []
+#     col_x = []
+#     data_x = []
+#     for i, doc_id in enumerate(doc_ids):
+#         doc_vec = average_word_vec(doc_id, doc_content_list, word_vector_map)
+#         for j in range(word_embeddings_dim):
+#             row_x.append(i)
+#             col_x.append(j)
+#             data_x.append(doc_vec[j])
+#     x = sp.csr_matrix((data_x, (row_x, col_x)), shape=(
+#         real_train_size, word_embeddings_dim))
+#
+#     y = []
+#     for label in train_labels:
+#         one_hot = [0 for l in range(len(label_list))] #？？？？
+#         one_hot[label] = 1
+#         y.append(one_hot)
+#     y = np.array(y)
+#     return x, y
 
 # not used
 # train_x, train_y = construct_feature_label_matrix(train_ids, doc_content_list, word_vector_map)
@@ -259,8 +270,8 @@ def export_graph(graph, node_size, phase=""):
     row, col, weight = graph
     adj = sp.csr_matrix(
         (weight, (row, col)), shape=(node_size, node_size))
-    if phase == "": path = "data/ind.{}.adj".format(dataset)
-    else: path = "data/ind.{}.{}.adj".format(dataset, phase)
+    if phase == "": path = "../../data/ind.{}.adj".format(dataset)
+    else: path = "../../data/ind.{}.{}.adj".format(dataset, phase)
     with open(path, 'wb') as f:
         pkl.dump(adj, f)
 
@@ -282,26 +293,26 @@ export_graph(concat_graph(B, D), node_size, phase="BD")
 export_graph(B, node_size, phase="B")
 
 # dump objects
-f = open("data/ind.{}.{}.x".format(dataset, "train"), 'wb')
+f = open("../../data/ind.{}.{}.x".format(dataset, "train"), 'wb')
 pkl.dump(train_ids, f)
 f.close()
 
-f = open("data/ind.{}.{}.y".format(dataset, "train"), 'wb')
+f = open("../../data/ind.{}.{}.y".format(dataset, "train"), 'wb')
 pkl.dump(train_labels, f)
 f.close()
 
-f = open("data/ind.{}.{}.x".format(dataset, "val"), 'wb')
+f = open("../../data/ind.{}.{}.x".format(dataset, "val"), 'wb')
 pkl.dump(val_ids, f)
 f.close()
 
-f = open("data/ind.{}.{}.y".format(dataset, "val"), 'wb')
+f = open("../../data/ind.{}.{}.y".format(dataset, "val"), 'wb')
 pkl.dump(val_labels, f)
 f.close()
 
-f = open("data/ind.{}.{}.x".format(dataset, "test"), 'wb')
+f = open("../../data/ind.{}.{}.x".format(dataset, "test"), 'wb')
 pkl.dump(test_ids, f)
 f.close()
 
-f = open("data/ind.{}.{}.y".format(dataset, "test"), 'wb')
+f = open("../../data/ind.{}.{}.y".format(dataset, "test"), 'wb')
 pkl.dump(test_labels, f)
 f.close()
