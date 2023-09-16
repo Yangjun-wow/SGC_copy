@@ -1,8 +1,8 @@
 import re
 import jieba
-from train import args
 # nltk.download('punkt')
 from collections import Counter
+
 
 # 使用正则清理数据集
 def clean_str_en(string):
@@ -22,6 +22,7 @@ def clean_str_en(string):
     string = re.sub(r"\s{2,}", " ", string)
     return string.strip().lower()
 
+
 def clean_str_cn(string):
     # 去除标点符号
     string = re.sub(r'[，。？！]', r'', string)
@@ -34,7 +35,7 @@ def clean_str_cn(string):
     return string.strip().lower()
 
 
-#获取停止词
+# 获取停止词
 def get_stop_words():
     file_object = open('../../data/stopwords/cn_stopwords.txt', encoding='utf-8')
     stop_words = []
@@ -44,19 +45,17 @@ def get_stop_words():
         stop_words.append(line)
     return stop_words
 
-def get_clean_words_en(docs,stop_words):
+
+def get_clean_words_en(docs, stop_words):
     clean_words = []
     for doc in docs:
-        if args.dataset != "mr":
-            temp = clean_str_en(doc).split()
-            temp = list(filter(lambda x: x not in stop_words, temp))
-        else:
-            temp = clean_str_en(doc).split()
-        clean_words.append(temp)
+        temp = clean_str_en(doc).split()
+        temp = list(filter(lambda x: x not in stop_words, temp))
+    clean_words.append(temp)
     return clean_words
 
 
-def get_clean_words_cn(docs,stop_words):
+def get_clean_words_cn(docs, stop_words):
     clean_words = []
     for doc in docs:
         temp = clean_str_cn(doc)
@@ -64,10 +63,10 @@ def get_clean_words_cn(docs,stop_words):
         clean_words.append(temp)
     return clean_words
 
+
 # jieba分词
 def cut(sentence, stopwords):
     return [token for token in jieba.lcut(sentence) if token not in stopwords]
-
 
 # clean_words = []
 # doc_content_list = []

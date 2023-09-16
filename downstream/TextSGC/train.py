@@ -28,12 +28,11 @@ parser.add_argument('--degree', type=int, default=2,
 parser.add_argument('--tuned', action='store_true', help='use tuned hyperparams')
 parser.add_argument('--preprocessed', action='store_true',
                     help='use preprocessed data')
-
 parser.add_argument('-data_train_path', type=str, default='', help='训练数据集地址')
 parser.add_argument('-data_test_path', type=str, default='', help='测试数据集地址')
 parser.add_argument('-language', type=str, default='cn', help='区分中/英数据集')
-
 args = parser.parse_args()
+
 args.cuda = not args.no_cuda and torch.cuda.is_available()
 args.device = 'cuda' if args.cuda else 'cpu'
 if args.tuned:
@@ -43,12 +42,14 @@ if args.tuned:
 torch.backends.cudnn.benchmark = True
 set_seed(args.seed, args.cuda)
 
+# TODO 修改路径
 sp_adj, index_dict, label_dict = load_corpus(args.dataset)
 for k, v in label_dict.items():
     if args.dataset == "mr":
         label_dict[k] = torch.Tensor(v).to(args.device)
     else:
         label_dict[k] = torch.LongTensor(v).to(args.device)
+
 features = torch.arange(sp_adj.shape[0]).to(args.device)
 
 adj = sparse_to_torch_sparse(sp_adj, device=args.device)
@@ -78,8 +79,8 @@ def train_linear(model, feat_dict, weight_decay, binary=False):
         optimizer.step(closure)
 
     train_time = time.perf_counter()-start
-    val_res = eval_linear(model, feat_dict["val"].cuda(),
-                          label_dict["val"].cuda(), binary)
+    val_res = eval_linear(model, feat_dict["test"].cuda(),
+                          label_dict["test"].cuda(), binary)
     return val_res['accuracy'], model, train_time
 
 def eval_linear(model, features, label, binary=False):
@@ -103,6 +104,8 @@ def eval_linear(model, features, label, binary=False):
         'loss': loss.item(),
         'accuracy': acc
     }
+
+
 if __name__ == '__main__':
     if args.dataset == "mr": nclass = 1
     else: nclass = label_dict["train"].max().item()+1
@@ -119,7 +122,7 @@ if __name__ == '__main__':
     model = SGC(nfeat=feat_dict["train"].size(1),
                 nclass=nclass)
     if args.cuda: model.cuda()
-    val_acc, best_model, train_time = train_linear(model, feat_dict, d wwd.weight_decay, args.dataset=="mr")
+    val_acc, best_model, train_time = train_linear(model, feat_dict, args.weight_decay, args.dataset=="mr")
     test_res = eval_linear(best_model, feat_dict["test"].cuda(),
                            label_dict["test"].cuda(), args.dataset=="mr")
     train_res = eval_linear(best_model, feat_dict["train"].cuda(),

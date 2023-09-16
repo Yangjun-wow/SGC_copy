@@ -18,18 +18,19 @@ from train import args
 from nltk.corpus import stopwords
 
 parser = argparse.ArgumentParser(description='Build Document Graph')
-parser.add_argument('--dataset', type=str, default='20ng',
-                    choices=['20ng', 'R8', 'R52', 'ohsumed', 'mr', 'yelp', 'ag_news'],
-                    help='dataset name')
 parser.add_argument('--embedding_dim', type=int, default=300,
                     help='word and document embedding size.')
+
+parser.add_argument('-data_train_path', type=str, default='', help='训练数据集地址')
+parser.add_argument('-data_test_path', type=str, default='', help='测试数据集地址')
+parser.add_argument('-language', type=str, default='cn', help='区分中/英数据集')
+
 args = parser.parse_args()
 
 # build corpus
-dataset = args.dataset
+dataset_name = args.data_train_path.split('\\')[2].split('.')[0]
 
 # build corpus
-
 word_embeddings_dim = args.embedding_dim
 word_vector_map = {} # TODO: modify this to use embedding
 
@@ -261,8 +262,8 @@ def export_graph(graph, node_size, phase=""):
     row, col, weight = graph
     adj = sp.csr_matrix(
         (weight, (row, col)), shape=(node_size, node_size))
-    if phase == "": path = "../../data/ind.{}.adj".format(dataset)
-    else: path = "../../data/ind.{}.{}.adj".format(dataset, phase)
+    if phase == "": path = "../../data/ind.{}.adj".format(dataset_name)
+    else: path = "../../data/ind.{}.{}.adj".format(dataset_name, phase)
     with open(path, 'wb') as f:
         pkl.dump(adj, f)
 
@@ -284,18 +285,18 @@ export_graph(concat_graph(B, D), node_size, phase="BD")
 export_graph(B, node_size, phase="B")
 
 # dump objects
-f = open("../../data/ind.{}.{}.x".format(dataset, "train"), 'wb')
+f = open("../../data/ind.{}.{}.x".format(dataset_name, "train"), 'wb')
 pkl.dump(train_ids, f)
 f.close()
 
-f = open("../../data/ind.{}.{}.y".format(dataset, "train"), 'wb')
+f = open("../../data/ind.{}.{}.y".format(dataset_name, "train"), 'wb')
 pkl.dump(train_labels, f)
 f.close()
 
-f = open("../../data/ind.{}.{}.x".format(dataset, "test"), 'wb')
+f = open("../../data/ind.{}.{}.x".format(dataset_name, "test"), 'wb')
 pkl.dump(test_ids, f)
 f.close()
 
-f = open("../../data/ind.{}.{}.y".format(dataset, "test"), 'wb')
+f = open("../../data/ind.{}.{}.y".format(dataset_name, "test"), 'wb')
 pkl.dump(test_labels, f)
 f.close()

@@ -36,7 +36,7 @@ def load_corpus(dataset_str):
     """
     index_dict = {}
     label_dict = {}
-    phases = ["train", "val", "test"]
+    phases = ["train", "test"]
     objects = []
     def load_pkl(path):
         with open(path.format(dataset_str, p), 'rb') as f:
